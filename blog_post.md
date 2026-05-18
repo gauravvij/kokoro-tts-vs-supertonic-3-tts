@@ -41,6 +41,10 @@ Hardware: AMD EPYC 7763, 4 cores available, 15.6GB RAM, no GPU. `CUDA_VISIBLE_DE
 
 ### RTF by Configuration and Text Length
 
+![RTF Comparison by Configuration](results/charts/rtf_comparison.png)
+
+*Mean RTF per configuration across all text lengths. Lower is faster. All four configs run below RTF 1.0 (the real-time boundary).*
+
 | Config | Tiny | Short | Medium | Long | Paragraph | Extended | Mean |
 |--------|------|-------|--------|------|-----------|----------|------|
 | Supertonic-3 (2-step) | 0.301 | 0.171 | 0.133 | 0.129 | 0.130 | 0.128 | **0.165** |
@@ -74,6 +78,10 @@ For a short sentence (59 chars), Supertonic at 2-step takes 0.73 seconds. Kokoro
 
 ## A Note on RTF Scaling
 
+![Latency vs Text Length](results/charts/latency_vs_length.png)
+
+*Wall-clock latency in seconds as text length grows. The gap between Supertonic and Kokoro widens significantly at longer inputs.*
+
 Both models show higher RTF (slower relative to audio duration) on very short texts. This is expected: there is a fixed per-call overhead from tokenization, model graph setup, and silence padding that dominates when the actual audio is only a second or two long.
 
 Supertonic shows the sharpest drop from tiny (RTF 0.30) to medium (RTF 0.13), a 2.3x improvement. This suggests its per-call overhead is larger relative to its steady-state throughput. Kokoro's RTF is more stable across lengths (0.45-0.72), which points to a different internal chunking strategy where cost per chunk is more uniform.
@@ -86,11 +94,39 @@ The practical implication: if you are synthesizing lots of short utterances (cha
 
 RTF numbers alone would make Supertonic the obvious choice. But we listened to the 24 audio samples, and the picture is more complicated.
 
+The text used for the short samples below is the classic pangram: *"The quick brown fox jumps over the lazy dog."* — a standard TTS test sentence that exercises most phonemes in English.
+
 **Supertonic-3 at 2-step** sounds robotic. Words blur together and some are difficult to make out. This is not a bug or a configuration error. It is a fundamental property of flow-matching models: fewer denoising steps means less refinement of the waveform. At 2 steps, the model has not converged enough to produce clean speech. The RTF of 0.165 is impressive on paper, but the output is not something you would put in front of a user.
+
+**Supertonic-3 (2-step) — short text:**
+
+https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Supertonic_2step_short.wav
 
 **Supertonic-3 at 5-step** is a different story. The audio is clearly intelligible, fully audible, and usable. It lacks some of the warmth and natural prosody variation you get from Kokoro, but it is not robotic. If you are building something where latency is the primary constraint and you can accept slightly flat delivery, this is a reasonable choice.
 
+**Supertonic-3 (5-step) — short text:**
+
+https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Supertonic_5step_short.wav
+
 **Kokoro 82M** (both PyTorch and ONNX) produces human-like speech. The prosody is natural, the pacing feels right, and it does not sound like a TTS system in the way older models do. The PyTorch and ONNX variants are perceptually indistinguishable in quality.
+
+**Kokoro-82M (PyTorch) — short text:**
+
+https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Kokoro_PyTorch_short.wav
+
+**Kokoro-82M (ONNX) — short text:**
+
+https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Kokoro_ONNX_short.wav
+
+The quality gap is even more obvious on longer text. Here are the medium samples (196 chars, 2-3 sentences on AI) — the point where Supertonic's RTF advantage is most pronounced but the quality tradeoff is also most audible:
+
+**Supertonic-3 (2-step) — medium text:**
+
+https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Supertonic_2step_medium.wav
+
+**Kokoro-82M (PyTorch) — medium text:**
+
+https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Kokoro_PyTorch_medium.wav
 
 One thing worth noting: Kokoro ONNX is marginally *slower* than PyTorch on tiny texts (RTF 0.72 vs 0.49) due to higher per-call overhead in the ONNX runtime. At medium and longer texts it catches up and edges ahead slightly. If you are doing a lot of short utterances, the PyTorch pipeline is actually faster.
 
