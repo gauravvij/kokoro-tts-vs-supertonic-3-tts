@@ -17,11 +17,13 @@ A complete CPU-only benchmark comparing Kokoro 82M and Supertonic 3 across speed
 | Kokoro-82M (PyTorch) | 0.469 | Excellent (human-like) |
 | Kokoro-82M (ONNX) | 0.509 | Excellent (human-like) |
 
-**Speed winner:** Supertonic-3 (2-step) at 6.1x real-time  
-**Quality + speed balance:** Supertonic-3 (5-step) at 3.2x real-time  
+**Speed winner:** Supertonic-3 (2-step) at 6.1x real-time
+**Quality + speed balance:** Supertonic-3 (5-step) at 3.2x real-time
 **Quality winner:** Kokoro-82M at 2.0-2.1x real-time
 
-Read the full analysis: [results/benchmark_report.md](results/benchmark_report.md)  
+![RTF Comparison](results/charts/rtf_comparison.png)
+
+Read the full analysis: [results/benchmark_report.md](results/benchmark_report.md)
 Read the blog post: [blog_post.md](blog_post.md)
 
 ## Files
