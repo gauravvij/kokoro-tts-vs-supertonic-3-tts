@@ -1,8 +1,8 @@
 # Kokoro 82M vs Supertonic 3: CPU TTS Benchmark
 
-<a href="https://heyneo.so/" target="_blank"><img src="https://img.shields.io/badge/Built%20with-Neo%20AI%20Engineer-black?style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHJ4PSIzIiBmaWxsPSJ3aGl0ZSIvPjwvc3ZnPg==" alt="Built with Neo AI Engineer" /></a>
+<a href="https://heyneo.com/" target="_blank"><img src="https://img.shields.io/badge/Built%20with-Neo%20AI%20Engineer-black?style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHJ4PSIzIiBmaWxsPSJ3aGl0ZSIvPjwvc3ZnPg==" alt="Built with Neo AI Engineer" /></a>
 
-This benchmark was designed, implemented, and executed end-to-end by [Neo](https://heyneo.so/) — an autonomous AI engineering agent — from a single prompt. No manual coding or configuration was required.
+This TTS model benchmark was designed, implemented, and executed end-to-end by [Neo](https://heyneo.com/) — an autonomous AI engineering agent — from a single prompt. No manual coding or configuration was required.
 
 ---
 
