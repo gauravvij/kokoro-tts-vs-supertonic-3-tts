@@ -10,18 +10,20 @@ A complete CPU-only benchmark comparing **Kokoro 82M**, **Supertonic 3**, and **
 
 ## Results Summary
 
+> **What are MOS and UTMOS?** *MOS (Mean Opinion Score)* is the standard way speech quality is measured: human listeners rate how natural a clip sounds on a 1–5 scale (1 = bad/robotic, 5 = indistinguishable from a real person) and the scores are averaged. Running a real listening panel is slow and expensive, so this benchmark uses *UTMOS* — a neural network trained on thousands of human MOS ratings that **predicts** that same 1–5 score automatically from the audio. Every sample below is scored by UTMOS, giving one consistent quality number across all configs without a human panel. Treat it as a strong proxy, not ground truth: as the Inflect-Nano-v1 row shows, UTMOS can over-rate clean-but-unnatural vocoders, so we also cross-check by ear. (`RTF` is *Real-Time Factor* — wall-clock seconds to synthesize one second of audio, so lower is faster and `1/RTF` is the real-time multiple.)
+
 | Config | Mean RTF | vs Real-Time | Mean MOS (UTMOS) | Params |
 |--------|----------|--------------|------------------|--------|
-| Supertonic-3 (2-step) | 0.112 | 8.9× | 1.57 (robotic) | ~99M |
-| Inflect-Nano-v1 | 0.133 | 7.5× | 3.48† (buzzy/robotic) | **4.6M** |
-| Supertonic-3 (5-step) | 0.195 | 5.1× | 4.38 (good) | ~99M |
-| Kokoro-82M (PyTorch) | 0.535 | 1.9× | 4.45 (human-like) | 82M |
-| Kokoro-82M (ONNX) | 0.564 | 1.8× | 4.44 (human-like) | 82M |
+| Inflect-Nano-v1 | 0.1376 | 7.3× | 3.48† (buzzy/robotic) | **4.6M** |
+| Supertonic-3 (2-step) | 0.1781 | 5.6× | 1.53 (robotic) | ~100M |
+| Supertonic-3 (5-step) | 0.3164 | 3.2× | 4.37 (good) | ~100M |
+| Kokoro-82M (ONNX) | 0.5711 | 1.8× | 4.44 (human-like) | 82M |
+| Kokoro-82M (PyTorch) | 0.7865 | 1.3× | 4.45 (human-like) | 82M |
 
 **Quality winner:** Kokoro-82M (MOS ~4.45, Apache-2.0)
-**Best speed + quality balance:** Supertonic-3 (5-step) (MOS 4.38 at 5.1× real-time)
-**Tiny + fast, but robotic:** Inflect-Nano-v1 — 4.6M params, 7.5× real-time, but buzzy/robotic by ear and caps output at ~15s (UTMOS 3.48 over-rates it)
-**Fastest but unusable:** Supertonic-3 (2-step) — MOS 1.57
+**Best speed + quality balance:** Supertonic-3 (5-step) (MOS 4.37 at 3.2× real-time)
+**Tiny + fast, but robotic:** Inflect-Nano-v1 — 4.6M params, 7.3× real-time, but buzzy/robotic by ear and caps output at ~15s (UTMOS 3.48 over-rates it)
+**Fastest but unusable:** Supertonic-3 (2-step) — MOS 1.53
 
 †*UTMOS over-rates Inflect-Nano-v1: its 3.48 looks mid-pack, but human listening finds it buzzy and robotic. The metric flatters small HiFi-GAN vocoders that are clean but not natural.*
 
@@ -29,7 +31,7 @@ A complete CPU-only benchmark comparing **Kokoro 82M**, **Supertonic 3**, and **
 ![RTF Comparison](results/charts/rtf_comparison.png)
 
 Read the full analysis: [results/benchmark_report.md](results/benchmark_report.md)
-Read the blog post: [new_blog_post.md](new_blog_post.md)
+Read the blog post: [blog_post.md](blog_post.md)
 
 > **Caveat on Inflect-Nano-v1:** its acoustic model has `max_frames = 1400`, capping synthesis at ~14.93s of audio. Inputs longer than that (`long`/`paragraph`/`extended`) are silently truncated, so its RTF/throughput on those rows are inflated. Treat the `tiny`/`short`/`medium` rows as the fair comparison; chunk long text yourself for real long-form use.
 
@@ -48,8 +50,8 @@ results/
     latency_vs_length.png
     quality_vs_speed.png        # MOS vs RTF scatter
   audio_samples/                # 30 WAV files (1 per config x text length)
-blog_post.md                    # Original writeup (Kokoro vs Supertonic)
-new_blog_post.md                # Updated writeup (adds Inflect-Nano-v1 + MOS)
+results_amd_epyc/               # Original AMD EPYC 7763 results (reference)
+blog_post.md                    # Full blog post writeup
 ```
 
 ## Hardware
