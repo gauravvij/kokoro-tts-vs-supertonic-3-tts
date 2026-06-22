@@ -1,8 +1,52 @@
+# ── Virtual environments (5.6 GB — never commit) ─────────────────────────────
 venv/
-__pycache__/
-*.pyc
-*.pyo
-.DS_Store
+.venv/
+env/
+ENV/
+
+# ── Models & large weight/binary files (downloaded or cloned, not source) ────
+# The Kokoro ONNX model, voices binary, and the cloned Inflect-Nano-v1 repo all
+# live under models/ and are fetched by the reproduce steps in the README.
 models/
 *.onnx
 *.bin
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.pickle
+
+# ── Python caches / build artifacts ──────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ── Logs & temp files ────────────────────────────────────────────────────────
+*.log
+nohup.out
+*.tmp
+
+# ── OS / editor cruft ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# ── Claude Code local session state (not part of the project) ────────────────
+.claude/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# INTENTIONALLY TRACKED (do NOT add to ignore):
+#   results/            timing CSVs, MOS CSV, report, charts, and the 30 WAV
+#                       samples — the blog post links to the audio via
+#                       raw.githubusercontent.com, so they must be committed.
+#   results_amd_epyc/   original AMD EPYC reference results (drop if unwanted).
+# ─────────────────────────────────────────────────────────────────────────────

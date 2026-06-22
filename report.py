@@ -21,9 +21,10 @@ import numpy as np
 import pandas as pd
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-BASE_DIR = "/app/tts_benchmark_cpu_0811"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RESULTS_DIR = os.path.join(BASE_DIR, "results")
 CSV_PATH = os.path.join(RESULTS_DIR, "raw_results.csv")
+MOS_CSV_PATH = os.path.join(RESULTS_DIR, "mos_results.csv")
 REPORT_PATH = os.path.join(RESULTS_DIR, "benchmark_report.md")
 CHARTS_DIR = os.path.join(RESULTS_DIR, "charts")
 AUDIO_DIR = os.path.join(RESULTS_DIR, "audio_samples")
@@ -32,13 +33,14 @@ os.makedirs(CHARTS_DIR, exist_ok=True)
 
 # ── Ordered labels ─────────────────────────────────────────────────────────────
 LENGTH_ORDER = ["tiny", "short", "medium", "long", "paragraph", "extended"]
-CONFIG_ORDER = ["Supertonic-2step", "Supertonic-5step", "Kokoro-PyTorch", "Kokoro-ONNX"]
+CONFIG_ORDER = ["Supertonic-2step", "Supertonic-5step", "Kokoro-PyTorch", "Kokoro-ONNX", "Inflect-Nano"]
 
 CONFIG_COLORS = {
     "Supertonic-2step": "#2196F3",   # blue
     "Supertonic-5step": "#03A9F4",   # light blue
     "Kokoro-PyTorch":   "#FF5722",   # deep orange
     "Kokoro-ONNX":      "#FF9800",   # orange
+    "Inflect-Nano":     "#4CAF50",   # green
 }
 
 CONFIG_LABELS = {
@@ -46,6 +48,7 @@ CONFIG_LABELS = {
     "Supertonic-5step": "Supertonic-3 (5-step)",
     "Kokoro-PyTorch":   "Kokoro-82M (PyTorch)",
     "Kokoro-ONNX":      "Kokoro-82M (ONNX)",
+    "Inflect-Nano":     "Inflect-Nano-v1 (4.6M)",
 }
 
 
@@ -236,15 +239,92 @@ def plot_latency_vs_length(stats, output_path):
     print(f"  Saved: {output_path}")
 
 
+# ── MOS loading ────────────────────────────────────────────────────────────────
+def load_mos():
+    """Load results/mos_results.csv if present.
+
+    Returns (mos_df, mean_by_config) or (None, None) when MOS was not run.
+    mean_by_config is a pandas Series indexed by config_name.
+    """
+    if not os.path.exists(MOS_CSV_PATH):
+        return None, None
+    mos_df = pd.read_csv(MOS_CSV_PATH)
+    if mos_df.empty:
+        return None, None
+    mean_by_config = mos_df.groupby("config_name")["mos"].mean()
+    return mos_df, mean_by_config
+
+
+# ── Chart 3: Quality (MOS) vs Speed (RTF) scatter ───────────────────────────────
+def plot_quality_vs_speed(stats, mos_mean, output_path):
+    """Scatter of objective quality (UTMOS) against speed (mean RTF) per config.
+
+    This is the chart that frames the core trade-off: a tiny/fast model can win
+    on RTF while losing on naturalness.
+    """
+    overall_rtf = stats.groupby("config_name")["mean_rtf"].mean()
+
+    # Nudge a few labels so overlapping points (the two Kokoro variants) stay legible.
+    label_offsets = {
+        "Kokoro-PyTorch": (10, 10),
+        "Kokoro-ONNX":    (10, -18),
+        "Inflect-Nano":   (10, 8),
+        "Supertonic-2step": (-12, 10),
+        "Supertonic-5step": (10, 8),
+    }
+
+    fig, ax = plt.subplots(figsize=(9, 7))
+    for config in CONFIG_ORDER:
+        if config not in overall_rtf.index or config not in mos_mean.index:
+            continue
+        x = overall_rtf[config]
+        y = mos_mean[config]
+        ax.scatter(x, y, s=260, color=CONFIG_COLORS[config],
+                   edgecolor="black", linewidth=1.0, alpha=0.9, zorder=3)
+        dx, dy = label_offsets.get(config, (10, 8))
+        ha = "right" if dx < 0 else "left"
+        ax.annotate(CONFIG_LABELS[config], (x, y),
+                    textcoords="offset points", xytext=(dx, dy), fontsize=10, ha=ha)
+
+    # Human-listening correction for Inflect-Nano: UTMOS over-rates it (sounds
+    # robotic/buzzy). Draw a downward arrow from the metric dot toward where the
+    # perceived quality really sits, so the chart doesn't imply it's mid-field.
+    if "Inflect-Nano" in overall_rtf.index and "Inflect-Nano" in mos_mean.index:
+        ix = overall_rtf["Inflect-Nano"]
+        iy = mos_mean["Inflect-Nano"]
+        ax.annotate(
+            "by ear: buzzy / robotic\n(UTMOS over-rates)",
+            xy=(ix, iy - 1.45), xytext=(ix, iy - 0.55),
+            ha="center", va="top", fontsize=9, color="#555555",
+            arrowprops=dict(arrowstyle="->", color="#777777", lw=1.4, linestyle="--"),
+        )
+
+    ax.set_xlabel("Mean RTF (lower = faster) →  faster", fontsize=12)
+    ax.set_ylabel("UTMOS predicted MOS (higher = better quality)", fontsize=12)
+    ax.set_title("Quality vs Speed\n(top-right = fast AND high quality = ideal; "
+                 "UTMOS over-rates the tiny model — see arrow)", fontsize=12)
+    ax.grid(alpha=0.3)
+    ax.set_ylim(1.0, 4.8)
+    ax.invert_xaxis()  # faster (lower RTF) on the right feels natural
+    plt.tight_layout(pad=2.0)
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved: {output_path}")
+
+
 # ── Markdown report ────────────────────────────────────────────────────────────
-def generate_report(df, stats, hw, output_path):
+def generate_report(df, stats, hw, mos_df, mos_mean, output_path):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
 
     lines = []
 
+    n_configs = df["config_name"].nunique()
+    n_lengths = df["text_length_label"].nunique()
+    n_runs = len(df)
+
     # Header
     lines += [
-        "# TTS CPU Benchmark Report: Supertonic 3 vs Kokoro 82M",
+        "# TTS CPU Benchmark Report: Kokoro 82M vs Supertonic 3 vs Inflect-Nano-v1",
         "",
         f"*Generated: {now}*",
         "",
@@ -258,17 +338,36 @@ def generate_report(df, stats, hw, output_path):
     lines += [
         "## Executive Summary",
         "",
-        "This report presents a rigorous CPU-only benchmark comparing **Supertonic 3** and **Kokoro 82M** "
-        "across 6 text lengths (12–1712 characters), 4 configurations, and 5 repetitions each (120 total timed runs). "
-        "All inference was performed on CPU with no GPU acceleration.",
+        "This report presents a rigorous CPU-only benchmark comparing **Kokoro 82M**, **Supertonic 3**, "
+        "and **Inflect-Nano-v1** "
+        f"across {n_lengths} text lengths (12–1712 characters), {n_configs} configurations, and 5 repetitions "
+        f"each ({n_runs} total timed runs). "
+        "All inference was performed on CPU with no GPU acceleration. Audio quality is reported as an objective "
+        "UTMOS predicted MOS (neural naturalness estimate, ~1–5 scale).",
         "",
-        "| Config | Overall Mean RTF | vs Real-Time |",
-        "|--------|-----------------|--------------|",
     ]
-    for config in CONFIG_ORDER:
-        rtf = overall_rtf[config]
-        speedup = 1.0 / rtf
-        lines.append(f"| {CONFIG_LABELS[config]} | **{rtf:.4f}** | {speedup:.1f}× faster than real-time |")
+    has_mos = mos_mean is not None
+    if has_mos:
+        lines += [
+            "| Config | Overall Mean RTF | vs Real-Time | Mean MOS (UTMOS) |",
+            "|--------|-----------------|--------------|------------------|",
+        ]
+        for config in CONFIG_ORDER:
+            rtf = overall_rtf[config]
+            speedup = 1.0 / rtf
+            mos = mos_mean.get(config, float("nan"))
+            lines.append(
+                f"| {CONFIG_LABELS[config]} | **{rtf:.4f}** | {speedup:.1f}× faster than real-time | **{mos:.2f}** |"
+            )
+    else:
+        lines += [
+            "| Config | Overall Mean RTF | vs Real-Time |",
+            "|--------|-----------------|--------------|",
+        ]
+        for config in CONFIG_ORDER:
+            rtf = overall_rtf[config]
+            speedup = 1.0 / rtf
+            lines.append(f"| {CONFIG_LABELS[config]} | **{rtf:.4f}** | {speedup:.1f}× faster than real-time |")
 
     lines += [
         "",
@@ -311,6 +410,7 @@ def generate_report(df, stats, hw, output_path):
         "| Supertonic-3 (5-step) | Supertone/supertonic-3 | ONNX Runtime (CPU) | total_steps=5 (default quality) |",
         "| Kokoro-82M (PyTorch) | hexgrad/Kokoro-82M | PyTorch CPU | Default |",
         "| Kokoro-82M (ONNX) | onnx-community/Kokoro-82M-v1.0-ONNX | ONNX Runtime (CPU) | Full precision |",
+        "| Inflect-Nano-v1 (4.6M) | owensong/Inflect-Nano-v1 | PyTorch CPU | FastSpeech + Snake HiFi-GAN, single male voice |",
         "",
         "### Text Corpus",
         "",
@@ -345,7 +445,8 @@ def generate_report(df, stats, hw, output_path):
         "  - **RTF** = wall_time / audio_duration (lower = faster; <1.0 = real-time capable)",
         "  - **Latency** = wall-clock seconds per synthesis call",
         "  - **Throughput** = input_chars / wall_time (chars/sec)",
-        "- **Voice**: Supertonic voice 'F1'; Kokoro voice 'af_heart'",
+        "- **Voice**: Supertonic voice 'F1' (female); Kokoro voice 'af_heart' (female); "
+        "Inflect-Nano-v1 default voice 'mark' (male, single-speaker)",
         "- **Audio saved**: 1 WAV sample per (config × text_length) for quality verification",
         "",
         "---",
@@ -435,7 +536,32 @@ def generate_report(df, stats, hw, output_path):
     for config in CONFIG_ORDER:
         row_vals = [f"{dur_pivot.loc[config, label]:.2f}s" for label in LENGTH_ORDER]
         lines.append(f"| {CONFIG_LABELS[config]} | " + " | ".join(row_vals) + " |")
-    lines += ["", "---", ""]
+    lines += [""]
+
+    # MOS (audio quality) table
+    if mos_df is not None:
+        lines += [
+            "### Audio Quality — UTMOS Predicted MOS by Config and Text Length",
+            "",
+            "*(Higher = more natural; UTMOS predicts mean opinion score on a ~1–5 scale. "
+            "Scores are objective neural estimates, not human ratings — and on Inflect-Nano-v1 the metric "
+            "is optimistic: human listening rates it buzzy/robotic, below what its 3.48 suggests.)*",
+            "",
+        ]
+        mos_pivot = mos_df.pivot_table(
+            index="config_name", columns="text_length_label",
+            values="mos", aggfunc="mean"
+        ).reindex(CONFIG_ORDER)[LENGTH_ORDER]
+        header_mos = "| Config | " + " | ".join(l.capitalize() for l in LENGTH_ORDER) + " | **Mean** |"
+        sep_mos = "|--------|" + "|".join(["-------"] * len(LENGTH_ORDER)) + "|---------|"
+        lines += [header_mos, sep_mos]
+        for config in CONFIG_ORDER:
+            row_vals = [f"{mos_pivot.loc[config, label]:.2f}" for label in LENGTH_ORDER]
+            overall_m = mos_pivot.loc[config].mean()
+            lines.append(f"| {CONFIG_LABELS[config]} | " + " | ".join(row_vals) + f" | **{overall_m:.2f}** |")
+        lines += [""]
+
+    lines += ["---", ""]
 
     # Analysis
     lines += [
@@ -459,49 +585,65 @@ def generate_report(df, stats, hw, output_path):
     onnx_speedup = kok_pt_rtf / kok_onnx_rtf if kok_onnx_rtf > 0 else float("nan")
     step_cost = st5_rtf / st2_rtf if st2_rtf > 0 else float("nan")
 
+    inflect_rtf = overall_rtf.get("Inflect-Nano", float("nan"))
+
+    def _mos(cfg):
+        return mos_mean.get(cfg, float("nan")) if mos_mean is not None else float("nan")
+
     lines += [
-        "### 2. Supertonic 3 vs Kokoro 82M",
+        "### 2. Speed vs Quality — the core trade-off",
         "",
-        f"Supertonic 3 at 2-step mode achieves a mean RTF of **{st2_rtf:.4f}**, which is "
-        f"**{st_vs_kok:.1f}× faster** than Kokoro 82M (PyTorch) at RTF {kok_pt_rtf:.4f}. "
-        f"Both models operate well below the RTF=1.0 real-time boundary, meaning both are "
-        f"capable of faster-than-real-time synthesis on this CPU.",
+        f"Supertonic 3 at 2-step mode is the fastest config (mean RTF **{st2_rtf:.4f}**, "
+        f"{1.0/st2_rtf:.1f}× real-time), **{st_vs_kok:.1f}× faster** than Kokoro 82M (PyTorch) at "
+        f"RTF {kok_pt_rtf:.4f}. But speed alone is misleading: its UTMOS quality is only "
+        f"**{_mos('Supertonic-2step'):.2f}**, by far the lowest in the field — the 2-step output is "
+        f"audibly robotic. The objective MOS confirms what listening reveals.",
         "",
-        f"At 5-step mode, Supertonic's RTF rises to **{st5_rtf:.4f}** — a {step_cost:.2f}× "
-        f"slowdown vs 2-step, reflecting the additional flow-matching denoising steps. "
-        f"Even at 5-step, Supertonic remains faster than both Kokoro variants.",
+        f"At 5-step mode, Supertonic's RTF rises to **{st5_rtf:.4f}** (a {step_cost:.2f}× slowdown vs "
+        f"2-step from the extra flow-matching denoising steps), but quality jumps to "
+        f"**{_mos('Supertonic-5step'):.2f}** — competitive with Kokoro. This is the configuration that "
+        f"actually balances speed and quality.",
         "",
-        "### 3. Kokoro PyTorch vs ONNX",
+        f"Kokoro 82M scores highest on quality (PyTorch **{_mos('Kokoro-PyTorch'):.2f}**, "
+        f"ONNX **{_mos('Kokoro-ONNX'):.2f}**) but is the slowest (RTF ~{kok_pt_rtf:.2f}–{kok_onnx_rtf:.2f}).",
         "",
-        f"Kokoro ONNX achieves a mean RTF of **{kok_onnx_rtf:.4f}** vs PyTorch's **{kok_pt_rtf:.4f}**. "
-        f"The ONNX runtime provides a **{onnx_speedup:.2f}× speedup** over PyTorch on CPU for Kokoro. "
-        f"This is consistent with ONNX Runtime's graph-level optimizations and kernel fusion "
-        f"outperforming PyTorch's eager execution on CPU.",
+        "### 3. Inflect-Nano-v1: tiny and fast, but robotic to the ear",
         "",
-        "### 4. RTF Scaling with Text Length",
+        f"At just 4.63M parameters — roughly 18× smaller than Kokoro and 21× smaller than Supertonic — "
+        f"Inflect-Nano-v1 is the second-fastest config (mean RTF **{inflect_rtf:.4f}**, "
+        f"{1.0/inflect_rtf:.1f}× real-time). Its UTMOS score is **{_mos('Inflect-Nano'):.2f}**, which "
+        f"places it mid-field on the metric — but **human listening does not agree with that score**: the "
+        f"output is audibly buzzy and robotic, with a metallic vocoder texture and flat prosody. It is "
+        f"more intelligible than Supertonic-2step (which is worse), but it is not in the same league as "
+        f"Kokoro or Supertonic-5step. This is a known UTMOS failure mode: it tends to over-rate small "
+        f"HiFi-GAN vocoders that are *clean* but not *natural*. Treat Inflect-Nano's 3.48 as an optimistic "
+        f"upper bound, not a usability verdict.",
         "",
-        "Both models show a characteristic RTF improvement as text length increases from tiny to medium, "
-        "then stabilize for longer texts. This is explained by:",
+        "> **Important caveat — output length cap.** Inflect-Nano-v1's acoustic model has "
+        "`max_frames = 1400`, which caps synthesis at **~14.93 seconds of audio** regardless of input "
+        "length. Inputs longer than that (here: `long`, `paragraph`, `extended`) are **silently "
+        "truncated** — only the first ~15s is rendered. Its RTF and throughput on those rows are "
+        "therefore inflated (it is doing less work than the other models, which synthesize the full "
+        "text). Treat Inflect-Nano's `tiny`/`short`/`medium` numbers as the honest comparison; for "
+        "long-form use you must split text into <15s chunks yourself. Its audio-duration row below "
+        "(flat 14.93s for the three longest inputs) makes the cap visible.",
         "",
-        "- **Short texts (tiny)**: Fixed per-call overhead (tokenization, model graph initialization, "
-        "  silence padding) dominates, inflating RTF",
-        "- **Medium to extended**: Chunking overhead amortizes; RTF converges toward the model's "
-        "  steady-state throughput",
+        "### 4. Kokoro PyTorch vs ONNX",
         "",
-        "Supertonic shows the most dramatic improvement from tiny (RTF ~0.30 at 2-step) to medium "
-        "(RTF ~0.13), a 2.3× improvement, suggesting significant fixed overhead per synthesis call. "
-        "Kokoro's RTF is more stable across lengths (~0.45–0.72 range), indicating a different "
-        "chunking strategy with more uniform per-chunk cost.",
+        f"On this hardware Kokoro ONNX (RTF **{kok_onnx_rtf:.4f}**) and PyTorch (**{kok_pt_rtf:.4f}**) are "
+        f"within ~5% of each other, and their quality is identical to two decimal places "
+        f"(**{_mos('Kokoro-ONNX'):.2f}** vs **{_mos('Kokoro-PyTorch'):.2f}**). The two are perceptually "
+        f"interchangeable; the choice is a deployment/packaging decision, not a quality one.",
         "",
         "### 5. Practical Implications",
         "",
         "| Use Case | Recommended Config | Reason |",
         "|----------|-------------------|--------|",
-        "| Real-time interactive (chatbot, voice assistant) | Supertonic-3 (2-step) | Lowest RTF, fastest response |",
-        "| Batch TTS (audiobooks, long documents) | Supertonic-3 (2-step) | Best throughput at scale |",
-        "| Quality-critical applications | Supertonic-3 (5-step) | Higher quality, still 3.8× real-time |",
-        "| Open-source / no-license-restriction | Kokoro-82M (ONNX) | Apache 2.0 weights, good CPU perf |",
-        "| PyTorch ecosystem integration | Kokoro-82M (PyTorch) | Native PyTorch, easy fine-tuning |",
+        "| Highest quality (human-like) | Kokoro-82M (PyTorch or ONNX) | Top UTMOS (~4.45), Apache-2.0 weights |",
+        "| Balanced speed + quality | Supertonic-3 (5-step) | MOS ~4.4 at ~5× real-time |",
+        "| Tiny footprint / edge, quality secondary | Inflect-Nano-v1 | 4.6M params, ~7.5× real-time, but buzzy/robotic (MOS 3.5 over-rates it) |",
+        "| Latency at any cost (prototyping) | Supertonic-3 (2-step) | Fastest, but MOS ~1.6 (robotic) |",
+        "| PyTorch ecosystem / fine-tuning | Kokoro-82M (PyTorch) | Native PyTorch, easy to extend |",
         "",
         "### 6. Reproducibility Notes",
         "",
@@ -524,17 +666,28 @@ def generate_report(df, stats, hw, output_path):
         "### Latency vs Text Length",
         "![Latency vs Text Length](charts/latency_vs_length.png)",
         "",
+    ]
+    if mos_df is not None:
+        lines += [
+            "### Quality vs Speed",
+            "![Quality vs Speed](charts/quality_vs_speed.png)",
+            "",
+        ]
+    lines += [
         "---",
         "",
     ]
 
     # Raw data summary
+    n_wavs = n_configs * n_lengths
     lines += [
         "## Raw Data",
         "",
-        f"Full raw results (120 rows): [`raw_results.csv`](raw_results.csv)",
+        f"Full raw results ({n_runs} rows): [`raw_results.csv`](raw_results.csv)",
         "",
-        f"Audio samples: [`audio_samples/`](audio_samples/) — 24 WAV files (1 per config × text_length)",
+        f"Per-sample MOS: [`mos_results.csv`](mos_results.csv)" if mos_df is not None else "",
+        "",
+        f"Audio samples: [`audio_samples/`](audio_samples/) — {n_wavs} WAV files (1 per config × text_length)",
         "",
         "---",
         "",
@@ -621,14 +774,23 @@ def main():
     print("Collecting hardware info...")
     hw = get_hardware_info()
 
+    # MOS (audio quality) data, if available
+    mos_df, mos_mean = load_mos()
+    if mos_df is not None:
+        print(f"Loaded MOS data: {len(mos_df)} rows")
+    else:
+        print("No MOS data found (results/mos_results.csv) — skipping quality columns")
+
     # Generate charts
     print("\nGenerating charts...")
     plot_rtf_comparison(stats, os.path.join(CHARTS_DIR, "rtf_comparison.png"))
     plot_latency_vs_length(stats, os.path.join(CHARTS_DIR, "latency_vs_length.png"))
+    if mos_df is not None:
+        plot_quality_vs_speed(stats, mos_mean, os.path.join(CHARTS_DIR, "quality_vs_speed.png"))
 
     # Generate report
     print("\nGenerating markdown report...")
-    generate_report(df, stats, hw, REPORT_PATH)
+    generate_report(df, stats, hw, mos_df, mos_mean, REPORT_PATH)
 
     # Print summary
     print_summary_table(stats)

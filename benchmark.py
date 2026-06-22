@@ -80,10 +80,11 @@ TEXT_CORPUS = {
 TEXT_LENGTH_ORDER = ["tiny", "short", "medium", "long", "paragraph", "extended"]
 REPS = 5
 WARMUP_TEXT_KEY = "medium"
-RESULTS_DIR = "/app/tts_benchmark_cpu_0811/results"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+RESULTS_DIR = os.path.join(BASE_DIR, "results")
 AUDIO_DIR = os.path.join(RESULTS_DIR, "audio_samples")
 CSV_PATH = os.path.join(RESULTS_DIR, "raw_results.csv")
-MODELS_DIR = "/app/tts_benchmark_cpu_0811/models"
+MODELS_DIR = os.path.join(BASE_DIR, "models")
 
 os.makedirs(RESULTS_DIR, exist_ok=True)
 os.makedirs(AUDIO_DIR, exist_ok=True)
@@ -167,12 +168,77 @@ class KokoroONNXRunner:
         onnx_path = os.path.join(MODELS_DIR, "kokoro-v1.0.onnx")
         voices_path = os.path.join(MODELS_DIR, "voices-v1.0.bin")
         self._model = Kokoro(onnx_path, voices_path)
+        # Two compatibility shims for kokoro-onnx 0.5.0 against this input_ids-style
+        # v1.0 ONNX export, applied at the session boundary so we don't edit the
+        # installed package:
+        #   1. "speed" is fed as int32 but the graph expects tensor(float).
+        #   2. The graph returns audio shaped (1, N); create() concatenates per-chunk
+        #      outputs and assumes 1-D, so long (multi-chunk) texts crash. Squeeze
+        #      the batch axis so concatenation works.
+        _orig_run = self._model.sess.run
+
+        def _patched_run(output_names, input_feed, *args, **kwargs):
+            if "speed" in input_feed:
+                input_feed = {**input_feed,
+                              "speed": np.asarray(input_feed["speed"], dtype=np.float32)}
+            outputs = _orig_run(output_names, input_feed, *args, **kwargs)
+            if (outputs and isinstance(outputs[0], np.ndarray)
+                    and outputs[0].ndim == 2 and outputs[0].shape[0] == 1):
+                outputs = [outputs[0][0]] + list(outputs[1:])
+            return outputs
+
+        self._model.sess.run = _patched_run
         print(f"  [{self.name}] Model loaded.")
 
     def synthesize(self, text: str):
         """Returns (samples_np, sample_rate)"""
         samples, sr = self._model.create(text, voice='af_heart', speed=1.0, lang='en-us')
         return np.array(samples, dtype=np.float32).flatten(), int(sr)
+
+
+class InflectNanoRunner:
+    """Inflect-Nano-v1 — 4.63M-param FastSpeech + Snake HiFi-GAN, 24kHz, single male voice.
+
+    Ships as a HuggingFace git repo (no pip package). We add the cloned repo to
+    sys.path and call its importable synthesize() helper, which returns a numpy
+    waveform directly. See models/Inflect-Nano-v1/inference.py.
+    """
+
+    def __init__(self):
+        self.name = "Inflect-Nano"
+        self._repo_dir = os.path.join(MODELS_DIR, "Inflect-Nano-v1")
+        self._inf = None
+        self._acoustic = None
+        self._vocoder = None
+        self._speakers = None
+        self._device = None
+
+    def load(self):
+        import torch
+        # The repo's inference.py inserts REPO_ROOT and the vendored frontend onto
+        # sys.path at import time, so importing it is enough to wire up its packages.
+        if self._repo_dir not in sys.path:
+            sys.path.insert(0, self._repo_dir)
+        import inference as inflect_inference
+        self._inf = inflect_inference
+        self._device = torch.device("cpu")
+        acoustic_path = os.path.join(self._repo_dir, "weights", "inflect_nano_v1_acoustic.pt")
+        vocoder_path = os.path.join(self._repo_dir, "weights", "inflect_nano_v1_vocoder.pt")
+        self._acoustic, self._speakers, acoustic_params = inflect_inference.load_acoustic(
+            acoustic_path, self._device
+        )
+        self._vocoder, vocoder_params = inflect_inference.load_vocoder(vocoder_path, self._device)
+        print(f"  [{self.name}] Model loaded. "
+              f"params: acoustic={acoustic_params:,} vocoder={vocoder_params:,} "
+              f"total={acoustic_params + vocoder_params:,}  speakers={self._speakers}")
+
+    def synthesize(self, text: str):
+        """Returns (samples_np, sample_rate)"""
+        audio = self._inf.synthesize(
+            text, self._acoustic, self._vocoder, self._speakers, self._device,
+            length_scale=1.0, pitch_scale=1.0, energy_scale=1.0,
+        )
+        return np.asarray(audio, dtype=np.float32).flatten(), 24000
 
 
 # ── Benchmark runner ───────────────────────────────────────────────────────────
@@ -265,10 +331,10 @@ def run_config(runner, rows: list):
 
 
 def main():
-    print("TTS CPU Benchmark: Supertonic 3 vs Kokoro 82M")
+    print("TTS CPU Benchmark: Supertonic 3 vs Kokoro 82M vs Inflect-Nano-v1")
     print(f"Text lengths: {TEXT_LENGTH_ORDER}")
     print(f"Reps per cell: {REPS}")
-    print(f"Total planned runs: {len(TEXT_LENGTH_ORDER) * 4 * REPS} (4 configs)")
+    print(f"Total planned runs: {len(TEXT_LENGTH_ORDER) * 5 * REPS} (5 configs)")
     print()
 
     # Check CPU info
@@ -288,6 +354,7 @@ def main():
         SupertonicRunner(total_steps=5),
         KokoroPyTorchRunner(),
         KokoroONNXRunner(),
+        InflectNanoRunner(),
     ]
 
     rows = []
