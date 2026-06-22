@@ -1,23 +1,22 @@
-# TTS CPU Benchmark Report: Supertonic 3 vs Kokoro 82M
+# TTS CPU Benchmark Report: Kokoro 82M vs Supertonic 3 vs Inflect-Nano-v1
 
-*Generated: 2026-05-18 09:00:22 UTC*
+*Generated: 2026-06-22 11:14:33 UTC*
 
 ---
 
 ## Executive Summary
 
-This report presents a rigorous CPU-only benchmark comparing **Supertonic 3** and **Kokoro 82M** across 6 text lengths (12–1712 characters), 4 configurations, and 5 repetitions each (120 total timed runs). All inference was performed on CPU with no GPU acceleration.
+This report presents a rigorous CPU-only benchmark comparing **Kokoro 82M**, **Supertonic 3**, and **Inflect-Nano-v1** across 6 text lengths (12–1712 characters), 5 configurations, and 5 repetitions each (150 total timed runs). All inference was performed on CPU with no GPU acceleration. Audio quality is reported as an objective UTMOS predicted MOS (neural naturalness estimate, ~1–5 scale).
 
-| Config | Overall Mean RTF | vs Real-Time |
-|--------|-----------------|--------------|
-| Supertonic-3 (2-step) | **0.1652** | 6.1× faster than real-time |
-| Supertonic-3 (5-step) | **0.3130** | 3.2× faster than real-time |
-| Kokoro-82M (PyTorch) | **0.4688** | 2.1× faster than real-time |
-| Kokoro-82M (ONNX) | **0.5090** | 2.0× faster than real-time |
+| Config | Overall Mean RTF | vs Real-Time | Mean MOS (UTMOS) |
+|--------|-----------------|--------------|------------------|
+| Supertonic-3 (2-step) | **0.1120** | 8.9× faster than real-time | **1.57** |
+| Supertonic-3 (5-step) | **0.1951** | 5.1× faster than real-time | **4.38** |
+| Kokoro-82M (PyTorch) | **0.5351** | 1.9× faster than real-time | **4.45** |
+| Kokoro-82M (ONNX) | **0.5643** | 1.8× faster than real-time | **4.44** |
+| Inflect-Nano-v1 (4.6M) | **0.1331** | 7.5× faster than real-time | **3.48** |
 
-> **Speed winner:** Supertonic-3 (2-step) with mean RTF = 0.1652 — 6.1× faster than real-time.
-
-> ⚠️ **Critical caveat — audio quality:** RTF alone does not reflect output usability. Human listening evaluation (see Section 7) found that **Supertonic-3 at 2-step produces robotic, unclear audio** that is unsuitable for most applications. **Supertonic-3 at 5-step is significantly clearer and fully audible**, while **Kokoro 82M produces the most natural, human-like speech** of all configurations tested. Speed and quality must be evaluated together when selecting a model for production use.
+> **Winner (lowest RTF):** Supertonic-3 (2-step) with mean RTF = 0.1120
 
 ---
 
@@ -25,16 +24,16 @@ This report presents a rigorous CPU-only benchmark comparing **Supertonic 3** an
 
 | Property | Value |
 |----------|-------|
-| CPU Model | AMD EPYC 7763 64-Core Processor |
+| CPU Model | Intel(R) Xeon(R) Platinum 8272CL CPU @ 2.60GHz |
 | CPU Cores | 4 |
 | RAM | 15.6 GB |
-| OS | Linux-6.17.0-1013-azure-x86_64-with-glibc2.36 |
-| Python | 3.11.9 |
-| supertonic | 1.2.3 |
+| OS | Linux-6.17.0-1018-azure-x86_64-with-glibc2.39 |
+| Python | 3.12.3 |
+| supertonic | 1.3.1 |
 | kokoro | 0.9.4 |
 | kokoro-onnx | unknown |
-| onnxruntime | 1.26.0 |
-| torch | 2.12.0+cu130 |
+| onnxruntime | 1.27.0 |
+| torch | 2.12.1+cu130 |
 
 ---
 
@@ -48,6 +47,7 @@ This report presents a rigorous CPU-only benchmark comparing **Supertonic 3** an
 | Supertonic-3 (5-step) | Supertone/supertonic-3 | ONNX Runtime (CPU) | total_steps=5 (default quality) |
 | Kokoro-82M (PyTorch) | hexgrad/Kokoro-82M | PyTorch CPU | Default |
 | Kokoro-82M (ONNX) | onnx-community/Kokoro-82M-v1.0-ONNX | ONNX Runtime (CPU) | Full precision |
+| Inflect-Nano-v1 (4.6M) | owensong/Inflect-Nano-v1 | PyTorch CPU | FastSpeech + Snake HiFi-GAN, single male voice |
 
 ### Text Corpus
 
@@ -70,7 +70,7 @@ This report presents a rigorous CPU-only benchmark comparing **Supertonic 3** an
   - **RTF** = wall_time / audio_duration (lower = faster; <1.0 = real-time capable)
   - **Latency** = wall-clock seconds per synthesis call
   - **Throughput** = input_chars / wall_time (chars/sec)
-- **Voice**: Supertonic voice 'F1'; Kokoro voice 'af_heart'
+- **Voice**: Supertonic voice 'F1' (female); Kokoro voice 'af_heart' (female); Inflect-Nano-v1 default voice 'mark' (male, single-speaker)
 - **Audio saved**: 1 WAV sample per (config × text_length) for quality verification
 
 ---
@@ -83,28 +83,31 @@ This report presents a rigorous CPU-only benchmark comparing **Supertonic 3** an
 
 | Config | Tiny | Short | Medium | Long | Paragraph | Extended | **Mean** |
 |--------|-------|-------|-------|-------|-------|-------|---------|
-| Supertonic-3 (2-step) | 0.3006±0.0102 | 0.1711±0.0029 | 0.1334±0.0015 | 0.1289±0.0006 | 0.1297±0.0011 | 0.1278±0.0005 | **0.1652** |
-| Supertonic-3 (5-step) | 0.5049±0.0120 | 0.3195±0.0141 | 0.2690±0.0009 | 0.2618±0.0019 | 0.2632±0.0015 | 0.2597±0.0008 | **0.3130** |
-| Kokoro-82M (PyTorch) | 0.4853±0.0085 | 0.4596±0.0010 | 0.4487±0.0017 | 0.4742±0.0093 | 0.4690±0.0015 | 0.4757±0.0157 | **0.4688** |
-| Kokoro-82M (ONNX) | 0.7213±0.0072 | 0.5168±0.0019 | 0.4608±0.0048 | 0.4565±0.0020 | 0.4487±0.0012 | 0.4497±0.0007 | **0.5090** |
+| Supertonic-3 (2-step) | 0.1854±0.0050 | 0.1142±0.0050 | 0.0974±0.0015 | 0.0954±0.0071 | 0.0912±0.0019 | 0.0884±0.0016 | **0.1120** |
+| Supertonic-3 (5-step) | 0.3205±0.0053 | 0.1910±0.0021 | 0.1642±0.0019 | 0.1663±0.0016 | 0.1636±0.0045 | 0.1649±0.0021 | **0.1951** |
+| Kokoro-82M (PyTorch) | 0.4622±0.0311 | 0.4191±0.0098 | 0.5000±0.0141 | 0.6280±0.0056 | 0.6254±0.0034 | 0.5757±0.0095 | **0.5351** |
+| Kokoro-82M (ONNX) | 0.7338±0.0095 | 0.5499±0.0046 | 0.5093±0.0055 | 0.5388±0.0661 | 0.5547±0.0801 | 0.4990±0.0041 | **0.5643** |
+| Inflect-Nano-v1 (4.6M) | 0.1536±0.0594 | 0.1195±0.0204 | 0.1143±0.0033 | 0.1310±0.0137 | 0.1342±0.0015 | 0.1462±0.0032 | **0.1331** |
 
 ### Mean Wall-Clock Latency (seconds) by Config and Text Length
 
 | Config | Tiny | Short | Medium | Long | Paragraph | Extended |
 |--------|-------|-------|-------|-------|-------|-------|
-| Supertonic-3 (2-step) | 0.419s | 0.727s | 1.822s | 4.393s | 8.110s | 15.388s |
-| Supertonic-3 (5-step) | 0.703s | 1.357s | 3.673s | 8.925s | 16.464s | 31.270s |
-| Kokoro-82M (PyTorch) | 0.740s | 1.861s | 5.620s | 14.393s | 24.832s | 52.601s |
-| Kokoro-82M (ONNX) | 0.677s | 1.808s | 5.506s | 14.023s | 23.501s | 46.766s |
+| Supertonic-3 (2-step) | 0.258s | 0.485s | 1.329s | 3.250s | 5.703s | 10.647s |
+| Supertonic-3 (5-step) | 0.447s | 0.811s | 2.242s | 5.669s | 10.231s | 19.854s |
+| Kokoro-82M (PyTorch) | 0.705s | 1.697s | 6.262s | 19.061s | 33.113s | 63.661s |
+| Kokoro-82M (ONNX) | 0.689s | 1.924s | 6.084s | 16.553s | 29.053s | 51.896s |
+| Inflect-Nano-v1 (4.6M) | 0.125s | 0.371s | 1.073s | 1.956s | 2.005s | 2.183s |
 
 ### Mean Throughput (chars/sec) by Config and Text Length
 
 | Config | Tiny | Short | Medium | Long | Paragraph | Extended |
 |--------|-------|-------|-------|-------|-------|-------|
-| Supertonic-3 (2-step) | 28.7 | 81.2 | 107.6 | 110.0 | 104.9 | 111.3 |
-| Supertonic-3 (5-step) | 17.1 | 43.5 | 53.4 | 54.1 | 51.7 | 54.7 |
-| Kokoro-82M (PyTorch) | 16.2 | 31.7 | 34.9 | 33.6 | 34.3 | 32.6 |
-| Kokoro-82M (ONNX) | 17.7 | 32.6 | 35.6 | 34.4 | 36.2 | 36.6 |
+| Supertonic-3 (2-step) | 46.5 | 121.7 | 147.5 | 149.3 | 149.3 | 160.8 |
+| Supertonic-3 (5-step) | 26.9 | 72.7 | 87.4 | 85.2 | 83.2 | 86.2 |
+| Kokoro-82M (PyTorch) | 17.1 | 34.8 | 31.3 | 25.3 | 25.7 | 26.9 |
+| Kokoro-82M (ONNX) | 17.4 | 30.7 | 32.2 | 29.5 | 29.8 | 33.0 |
+| Inflect-Nano-v1 (4.6M) | 104.7 | 162.2 | 182.9 | 248.8 | 424.5 | 784.6 |
 
 ### Reference: Mean Audio Duration (seconds) per Config × Text Length
 
@@ -114,6 +117,19 @@ This report presents a rigorous CPU-only benchmark comparing **Supertonic 3** an
 | Supertonic-3 (5-step) | 1.39s | 4.25s | 13.65s | 34.09s | 62.55s | 120.43s |
 | Kokoro-82M (PyTorch) | 1.52s | 4.05s | 12.53s | 30.35s | 52.95s | 110.58s |
 | Kokoro-82M (ONNX) | 0.94s | 3.50s | 11.95s | 30.72s | 52.37s | 104.00s |
+| Inflect-Nano-v1 (4.6M) | 0.81s | 3.10s | 9.39s | 14.93s | 14.93s | 14.93s |
+
+### Audio Quality — UTMOS Predicted MOS by Config and Text Length
+
+*(Higher = more natural; UTMOS predicts mean opinion score on a ~1–5 scale. Scores are objective neural estimates, not human ratings — and on Inflect-Nano-v1 the metric is optimistic: human listening rates it buzzy/robotic, below what its 3.48 suggests.)*
+
+| Config | Tiny | Short | Medium | Long | Paragraph | Extended | **Mean** |
+|--------|-------|-------|-------|-------|-------|-------|---------|
+| Supertonic-3 (2-step) | 1.32 | 2.35 | 1.58 | 1.45 | 1.36 | 1.35 | **1.57** |
+| Supertonic-3 (5-step) | 4.18 | 4.47 | 4.51 | 4.52 | 4.48 | 4.12 | **4.38** |
+| Kokoro-82M (PyTorch) | 4.05 | 4.51 | 4.55 | 4.54 | 4.53 | 4.53 | **4.45** |
+| Kokoro-82M (ONNX) | 4.04 | 4.51 | 4.54 | 4.55 | 4.52 | 4.49 | **4.44** |
+| Inflect-Nano-v1 (4.6M) | 3.02 | 4.15 | 3.90 | 3.45 | 3.01 | 3.37 | **3.48** |
 
 ---
 
@@ -121,79 +137,41 @@ This report presents a rigorous CPU-only benchmark comparing **Supertonic 3** an
 
 ### 1. Overall Speed Ranking
 
-1. **Supertonic-3 (2-step)** — Mean RTF: 0.1652 (6.1× real-time)
-2. **Supertonic-3 (5-step)** — Mean RTF: 0.3130 (3.2× real-time)
-3. **Kokoro-82M (PyTorch)** — Mean RTF: 0.4688 (2.1× real-time)
-4. **Kokoro-82M (ONNX)** — Mean RTF: 0.5090 (2.0× real-time)
+1. **Supertonic-3 (2-step)** — Mean RTF: 0.1120 (8.9× real-time)
+2. **Inflect-Nano-v1 (4.6M)** — Mean RTF: 0.1331 (7.5× real-time)
+3. **Supertonic-3 (5-step)** — Mean RTF: 0.1951 (5.1× real-time)
+4. **Kokoro-82M (PyTorch)** — Mean RTF: 0.5351 (1.9× real-time)
+5. **Kokoro-82M (ONNX)** — Mean RTF: 0.5643 (1.8× real-time)
 
-### 2. Supertonic 3 vs Kokoro 82M
+### 2. Speed vs Quality — the core trade-off
 
-Supertonic 3 at 2-step mode achieves a mean RTF of **0.1652**, which is **2.8× faster** than Kokoro 82M (PyTorch) at RTF 0.4688. Both models operate well below the RTF=1.0 real-time boundary, meaning both are capable of faster-than-real-time synthesis on this CPU.
+Supertonic 3 at 2-step mode is the fastest config (mean RTF **0.1120**, 8.9× real-time), **4.8× faster** than Kokoro 82M (PyTorch) at RTF 0.5351. But speed alone is misleading: its UTMOS quality is only **1.57**, by far the lowest in the field — the 2-step output is audibly robotic. The objective MOS confirms what listening reveals.
 
-At 5-step mode, Supertonic's RTF rises to **0.3130** — a 1.89× slowdown vs 2-step, reflecting the additional flow-matching denoising steps. Even at 5-step, Supertonic remains faster than both Kokoro variants.
+At 5-step mode, Supertonic's RTF rises to **0.1951** (a 1.74× slowdown vs 2-step from the extra flow-matching denoising steps), but quality jumps to **4.38** — competitive with Kokoro. This is the configuration that actually balances speed and quality.
 
-### 3. Kokoro PyTorch vs ONNX
+Kokoro 82M scores highest on quality (PyTorch **4.45**, ONNX **4.44**) but is the slowest (RTF ~0.54–0.56).
 
-Kokoro ONNX achieves a mean RTF of **0.5090** vs PyTorch's **0.4688**. The ONNX runtime provides a **0.92× speedup** over PyTorch on CPU for Kokoro. This is consistent with ONNX Runtime's graph-level optimizations and kernel fusion outperforming PyTorch's eager execution on CPU.
+### 3. Inflect-Nano-v1: tiny and fast, but robotic to the ear
 
-### 4. RTF Scaling with Text Length
+At just 4.63M parameters — roughly 18× smaller than Kokoro and 21× smaller than Supertonic — Inflect-Nano-v1 is the second-fastest config (mean RTF **0.1331**, 7.5× real-time). Its UTMOS score is **3.48**, which places it mid-field on the metric — but **human listening does not agree with that score**: the output is audibly buzzy and robotic, with a metallic vocoder texture and flat prosody. It is more intelligible than Supertonic-2step (which is worse), but it is not in the same league as Kokoro or Supertonic-5step. This is a known UTMOS failure mode: it tends to over-rate small HiFi-GAN vocoders that are *clean* but not *natural*. Treat Inflect-Nano's 3.48 as an optimistic upper bound, not a usability verdict.
 
-Both models show a characteristic RTF improvement as text length increases from tiny to medium, then stabilize for longer texts. This is explained by:
+> **Important caveat — output length cap.** Inflect-Nano-v1's acoustic model has `max_frames = 1400`, which caps synthesis at **~14.93 seconds of audio** regardless of input length. Inputs longer than that (here: `long`, `paragraph`, `extended`) are **silently truncated** — only the first ~15s is rendered. Its RTF and throughput on those rows are therefore inflated (it is doing less work than the other models, which synthesize the full text). Treat Inflect-Nano's `tiny`/`short`/`medium` numbers as the honest comparison; for long-form use you must split text into <15s chunks yourself. Its audio-duration row below (flat 14.93s for the three longest inputs) makes the cap visible.
 
-- **Short texts (tiny)**: Fixed per-call overhead (tokenization, model graph initialization,   silence padding) dominates, inflating RTF
-- **Medium to extended**: Chunking overhead amortizes; RTF converges toward the model's   steady-state throughput
+### 4. Kokoro PyTorch vs ONNX
 
-Supertonic shows the most dramatic improvement from tiny (RTF ~0.30 at 2-step) to medium (RTF ~0.13), a 2.3× improvement, suggesting significant fixed overhead per synthesis call. Kokoro's RTF is more stable across lengths (~0.45–0.72 range), indicating a different chunking strategy with more uniform per-chunk cost.
+On this hardware Kokoro ONNX (RTF **0.5643**) and PyTorch (**0.5351**) are within ~5% of each other, and their quality is identical to two decimal places (**4.44** vs **4.45**). The two are perceptually interchangeable; the choice is a deployment/packaging decision, not a quality one.
 
-### 5. Practical Implications (Speed Only)
-
-> ⚠️ This table considers speed metrics only. See Section 7 (Human Listening Evaluation) for quality-adjusted recommendations, which significantly change the conclusions below.
+### 5. Practical Implications
 
 | Use Case | Recommended Config | Reason |
 |----------|-------------------|--------|
-| Real-time interactive (chatbot, voice assistant) | Supertonic-3 (5-step) | Best speed with acceptable quality; 2-step audio is too degraded |
-| Batch TTS (audiobooks, long documents) | Kokoro-82M (ONNX) | Best quality at scale; Supertonic-5step if throughput is critical |
-| Quality-critical applications | Kokoro-82M (PyTorch or ONNX) | Human-like output, Apache 2.0 license |
-| Open-source / no-license-restriction | Kokoro-82M (ONNX) | Apache 2.0 weights, best quality on CPU |
-| PyTorch ecosystem integration | Kokoro-82M (PyTorch) | Native PyTorch, easy fine-tuning |
+| Highest quality (human-like) | Kokoro-82M (PyTorch or ONNX) | Top UTMOS (~4.45), Apache-2.0 weights |
+| Balanced speed + quality | Supertonic-3 (5-step) | MOS ~4.4 at ~5× real-time |
+| Tiny footprint / edge, quality secondary | Inflect-Nano-v1 | 4.6M params, ~7.5× real-time, but buzzy/robotic (MOS 3.5 over-rates it) |
+| Latency at any cost (prototyping) | Supertonic-3 (2-step) | Fastest, but MOS ~1.6 (robotic) |
+| PyTorch ecosystem / fine-tuning | Kokoro-82M (PyTorch) | Native PyTorch, easy to extend |
 
-### 7. Human Listening Evaluation (Audio Quality)
-
-> **Methodology**: Audio samples generated during the benchmark run (24 WAV files, 1 per config × text length) were reviewed by a human listener. This is a subjective evaluation and does not replace formal MOS (Mean Opinion Score) testing, but it captures real-world usability that RTF metrics cannot.
-
-| Config | Perceived Quality | Naturalness | Clarity | Verdict |
-|--------|------------------|-------------|---------|---------|
-| Supertonic-3 (2-step) | ❌ Poor | Robotic, mechanical | Words unclear, difficult to follow | **Not suitable for production** |
-| Supertonic-3 (5-step) | ✅ Good | Noticeably cleaner | Fully audible and intelligible | **Acceptable for most use cases** |
-| Kokoro-82M (PyTorch) | ✅✅ Excellent | Human-like, natural prosody | Clear and natural | **Best quality overall** |
-| Kokoro-82M (ONNX) | ✅✅ Excellent | Human-like, natural prosody | Clear and natural | **Best quality overall** |
-
-**Key findings:**
-
-- **Supertonic-3 (2-step) is disqualified for quality-sensitive applications.** The 2-step flow-matching inference uses too few denoising iterations to produce clean audio. The output is robotic and words are frequently unclear — this is an inherent limitation of reducing `total_steps` to 2. Its RTF advantage (6.1×) is meaningless if the output is not usable.
-
-- **Supertonic-3 (5-step) is a viable option** when latency is the primary constraint and some naturalness can be traded off. It is clearly intelligible, though it lacks the warmth and prosodic variation of Kokoro.
-
-- **Kokoro 82M is the quality leader.** Both PyTorch and ONNX variants produce human-like, natural-sounding speech that is indistinguishable from higher-parameter models in casual listening. This aligns with Kokoro's #1 ranking on the HuggingFace TTS Arena Leaderboard at the time of its release.
-
-**Implication for the RTF rankings:** The speed-vs-quality tradeoff fundamentally changes the practical recommendation. Supertonic-3 (2-step) should be excluded from any quality-sensitive comparison. The **effective** speed winner for production-grade output is **Supertonic-3 (5-step) at RTF 0.3130** — still 3.2× faster than real-time and 1.5× faster than Kokoro, but with acceptable audio quality.
-
----
-
-### 8. Combined Speed + Quality Assessment
-
-| Config | Mean RTF | Quality | Recommended For |
-|--------|----------|---------|-----------------|
-| Supertonic-3 (2-step) | **0.1652** | ❌ Robotic / unclear | Prototyping only — not for end users |
-| Supertonic-3 (5-step) | 0.3130 | ✅ Clear, intelligible | Latency-critical apps where naturalness is secondary |
-| Kokoro-82M (PyTorch) | 0.4688 | ✅✅ Human-like | Quality-first apps, PyTorch ecosystem, fine-tuning |
-| Kokoro-82M (ONNX) | 0.5090 | ✅✅ Human-like | Quality-first apps, lightweight deployment |
-
-> **Bottom line:** If audio quality matters to end users, **Kokoro 82M is the practical winner** despite being 1.5–3× slower than Supertonic on RTF. If throughput is the dominant constraint and quality can be reviewed/filtered, **Supertonic-3 (5-step)** offers the best speed-quality balance.
-
----
-
-### 9. Reproducibility Notes
+### 6. Reproducibility Notes
 
 - All runs performed on a single CPU process with default thread counts
 - No process pinning or CPU affinity was set
@@ -210,14 +188,19 @@ Supertonic shows the most dramatic improvement from tiny (RTF ~0.30 at 2-step) t
 ### Latency vs Text Length
 ![Latency vs Text Length](charts/latency_vs_length.png)
 
+### Quality vs Speed
+![Quality vs Speed](charts/quality_vs_speed.png)
+
 ---
 
 ## Raw Data
 
-Full raw results (120 rows): [`raw_results.csv`](raw_results.csv)
+Full raw results (150 rows): [`raw_results.csv`](raw_results.csv)
 
-Audio samples: [`audio_samples/`](audio_samples/) — 24 WAV files (1 per config × text_length)
+Per-sample MOS: [`mos_results.csv`](mos_results.csv)
+
+Audio samples: [`audio_samples/`](audio_samples/) — 30 WAV files (1 per config × text_length)
 
 ---
 
-*Report generated by `report.py` on 2026-05-18 09:00:22 UTC*
+*Report generated by `report.py` on 2026-06-22 11:14:33 UTC*
