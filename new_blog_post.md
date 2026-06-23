@@ -88,6 +88,8 @@ Both Supertonic configs and Inflect-Nano sit far below RTF 0.2. Kokoro is the sl
 | Kokoro-82M (ONNX) | 0.69s | 1.92s | 6.08s | 16.55s | 29.05s | 51.90s |
 | Inflect-Nano-v1 | 0.13s | 0.37s | 1.07s | 1.96s* | 2.01s* | 2.18s* |
 
+![Latency vs Text Length](results/charts/latency_vs_length.png)
+
 ### Throughput (chars/sec)
 
 | Config | Tiny | Short | Medium | Long | Paragraph | Extended |
@@ -101,6 +103,8 @@ Both Supertonic configs and Inflect-Nano sit far below RTF 0.2. Kokoro is the sl
 *\* Inflect-Nano's throughput at length looks enormous because it stops generating after ~15s of audio regardless of how much text you give it. Those chars/sec are not real synthesis rates.*
 
 ### Audio Quality — UTMOS Predicted MOS (higher = more natural)
+
+**What is MOS?** MOS stands for **Mean Opinion Score** — the standard way speech quality is rated. Traditionally, a panel of human listeners hears each audio clip and rates it on a 1-to-5 scale (1 = bad/robotic, 5 = excellent/natural), and the scores are averaged. Collecting human ratings is slow and expensive, so here we use **UTMOS**, a neural network trained to *predict* that human MOS score automatically from the audio. It gives us a 1–5 number for every sample without a listening panel — fast and repeatable, but, as we'll see, not perfect.
 
 | Config | Tiny | Short | Medium | Long | Paragraph | Extended | Mean |
 |--------|------|-------|--------|------|-----------|----------|------|
@@ -138,35 +142,35 @@ The text used for the short samples below is the classic pangram: *"The quick br
 
 **Supertonic-3 at 2-step** sounds robotic (MOS 1.57). Words blur together and some are difficult to make out. This is not a bug: it is a fundamental property of flow-matching models — fewer denoising steps means less waveform refinement. The RTF of 0.112 is impressive on paper, but the output is not something you would put in front of a user.
 
-https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Supertonic_2step_short.wav
+🔊 [Listen — Supertonic-3 (2-step), short](https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Supertonic_2step_short.wav)
 
 **Supertonic-3 at 5-step** (MOS 4.38) is a different story — clearly intelligible, fully audible, and usable. It lacks some of the warmth and natural prosody of Kokoro, but it is not robotic. If latency is your primary constraint and you can accept slightly flat delivery, this is a reasonable choice.
 
-https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Supertonic_5step_short.wav
+🔊 [Listen — Supertonic-3 (5-step), short](https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Supertonic_5step_short.wav)
 
 **Kokoro 82M** (both PyTorch and ONNX, MOS ~4.45) produces human-like speech. The prosody is natural, the pacing feels right, and it does not sound like a TTS system in the way older models do. The PyTorch and ONNX variants are perceptually indistinguishable — their MOS scores match to two decimals.
 
-https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Kokoro_PyTorch_short.wav
+🔊 [Listen — Kokoro-82M (PyTorch), short](https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Kokoro_PyTorch_short.wav)
 
-https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Kokoro_ONNX_short.wav
+🔊 [Listen — Kokoro-82M (ONNX), short](https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Kokoro_ONNX_short.wav)
 
 **Inflect-Nano-v1** (UTMOS 3.48 overall) is a single male voice that is **buzzy and robotic** to the ear — a metallic vocoder texture and flat prosody — despite the mid-range metric score. It is more intelligible than Supertonic-2step, but it does not approach Kokoro or Supertonic-5step. Impressive that a sub-5-megabyte model is intelligible at all; just don't expect natural.
 
-https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Inflect_Nano_short.wav
+🔊 [Listen — Inflect-Nano-v1, short](https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Inflect_Nano_short.wav)
 
 The quality gap is clearer on longer text. Here are the medium samples (196 chars) — within Inflect-Nano's length cap, so a fair comparison:
 
 **Supertonic-3 (2-step) — medium text:**
 
-https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Supertonic_2step_medium.wav
+🔊 [Listen — Supertonic-3 (2-step), medium](https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Supertonic_2step_medium.wav)
 
 **Inflect-Nano-v1 — medium text:**
 
-https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Inflect_Nano_medium.wav
+🔊 [Listen — Inflect-Nano-v1, medium](https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Inflect_Nano_medium.wav)
 
 **Kokoro-82M (PyTorch) — medium text:**
 
-https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Kokoro_PyTorch_medium.wav
+🔊 [Listen — Kokoro-82M (PyTorch), medium](https://github.com/gauravvij/kokoro-tts-vs-supertonic-3-tts/raw/main/results/audio_samples/Kokoro_PyTorch_medium.wav)
 
 > *Note: the quality prose above is anchored to the objective UTMOS scores and a listen to the short/medium samples. The 30 WAV files are in the repo — give them a listen and adjust the wording to your own ears.*
 
